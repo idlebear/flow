@@ -1,6 +1,6 @@
 # Flow
 
-## Using a convolutional Neural Net to predict future positions
+## Using a Convolutional Neural Net to predict future positions
 
 The code in this repository is working example of a CNN trained to predict the future motion of other vehicles based on 1 second of LIDAR input data.  The backbone neural net is based on the work of [Casas et al.](http://openaccess.thecvf.com/content/CVPR2021/html/Casas_MP3_A_Unified_Model_To_Map_Perceive_Predict_and_Plan_CVPR_2021_paper.html)[^1]
 
