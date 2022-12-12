@@ -71,20 +71,32 @@ class FlowGrid:
 
         last_prob = self.prob
         for t in range(T):
-            next_prob = np.ones_like(last_prob)
+            k_prob_11 = np.zeros_like(last_prob)
+            k_prob_12 = np.zeros_like(last_prob)
+            k_prob_21 = np.zeros_like(last_prob)
+            k_prob_22 = np.zeros_like(last_prob)
 
             for k in range(K):
 
                 if self.score is not None and K > 1:
                     if self.score.shape[1] == 1:
                         prob = last_prob * self.score[t, 0, 0, :, :]
+                        mask = (self.score[t, 0, 0, :, :] != 0).astype(int)
                     else:
                         prob = last_prob * self.score[t, k, 0, :, :]
+                        mask = (self.score[t, k, 0, :, :] != 0).astype(int)
                 else:
                     prob = last_prob
+                    mask = (prob != 0).astype(int)
 
                 # TODO: Reversed X and Y here in flow because the data from Carla has the X, Y coordinates flipped
                 yy, xx = np.meshgrid(np.arange(H), np.arange(W))
+
+                # mask off the elements that dont have any score
+                prob = prob * mask.astype(float)
+                xx *= mask
+                yy *= mask
+
                 nx = xx + self.motion[t, k, 0, :, :] * dt / self.scale
                 ny = yy + self.motion[t, k, 1, :, :] * dt / self.scale
 
@@ -102,25 +114,18 @@ class FlowGrid:
                 # after proportioning the blame, clip the indices so they
                 # still fit in the grid -- this means our zero rows are probably
                 # garbage
-                # TODO: Add a padding row around the outside to absorb the
-                #       out-of-bounds moves
                 x1 = np.clip(x1, 0, W-1).astype(int)
                 x2 = np.clip(x2, 0, W-1).astype(int)
                 y1 = np.clip(y1, 0, H-1).astype(int)
                 y2 = np.clip(y2, 0, H-1).astype(int)
 
-                k_prob = np.ones_like(last_prob)
-                k_prob[x1, y1] *= (1 - prob * x1prop * y1prop)
-                k_prob[x1, y2] *= (1 - prob * x1prop * y2prop)
-                k_prob[x2, y1] *= (1 - prob * x2prop * y1prop)
-                k_prob[x2, y2] *= (1 - prob * x2prop * y2prop)
+                k_prob_11[x1, y1] += prob * x1prop * y1prop
+                k_prob_12[x1, y2] += prob * x1prop * y2prop
+                k_prob_21[x2, y1] += prob * x2prop * y1prop
+                k_prob_22[x2, y2] += prob * x2prop * y2prop
 
-                # add the cummulative prob for this K to the prob of not flowing
-                next_prob *= k_prob
-
-            # reverse the probabilistic sense to get prob of flow for all 'j' cells and clip to
-            # ensure we remain in bounds
-            next_prob = np.clip(1 - next_prob, 0, 1)
+            # add the cummulative prob for this K to the prob of not flowing
+            next_prob = (1 - k_prob_11)*(1 - k_prob_12)*(1 - k_prob_21)*(1 - k_prob_22)
 
             last_prob = output_fn(last_prob, next_prob)
 
